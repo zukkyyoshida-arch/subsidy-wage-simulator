@@ -430,7 +430,7 @@ else:
         advice_markdown += f"""*   ❌ **給与支給総額のCAGR（年平均成長率）が目標の 1.50% に達していません (現在: {cagr_pct:.2f}% / 不足額: {deficit:,.0f}円)**
 *   年率平均 1.5% 以上の増加をクリアするためには、3年目の給与支給総額を最低でも **{format_japanese_currency(req_year3_salary)}** (あと **{format_japanese_currency(deficit)}** アップ) に引き上げる必要があります。
 
-💡 **ずっきー参謀による2つのリカバリー選択肢**:
+💡 **要件達成に向けた2つの改善シミュレーション案**:
 """
         # 【案A】ベースアップ案 (ゼロ除算ガード)
         if year3_employees > 0:
