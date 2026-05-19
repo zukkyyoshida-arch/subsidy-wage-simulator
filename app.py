@@ -28,6 +28,27 @@ PREFECTURE_MIN_WAGES = {
 }
 
 # ==========================================================================
+# 💴 日本語通貨フォーマット関数 (億円・万円のスマート表示)
+# ==========================================================================
+def format_japanese_currency(yen):
+    if yen is None or yen <= 0:
+        return "0円"
+    if yen < 10000:
+        return f"{yen}円"
+    
+    man_yen = yen // 10000
+    oku_yen = man_yen // 10000
+    rem_man = man_yen % 10000
+    
+    if oku_yen > 0:
+        if rem_man > 0:
+            return f"{oku_yen}億{rem_man:,.0f}万円"
+        else:
+            return f"{oku_yen}億円"
+    else:
+        return f"{man_yen:,.0f}万円"
+
+# ==========================================================================
 # ページ設定 (リッチなワイドレイアウト & ダークモード親和性)
 # ==========================================================================
 st.set_page_config(
@@ -161,9 +182,10 @@ with col_inputs:
     c1, c2 = st.columns(2)
     with c1:
         base_employees = st.number_input("被保険者数 (基準年度)", value=10, min_value=1, max_value=1000)
+        base_employees_safe = base_employees if base_employees > 0 else 1
     with c2:
         base_salary = st.number_input("給与支給総額 (基準年度)", value=36000000, min_value=100000, step=500000)
-        st.caption(f"現在の総額: **{base_salary // 10000:,.0f}万円**")
+        st.caption(f"現在の総額: **{format_japanese_currency(base_salary)}**")
         
     st.markdown("##### 各計画年度の計画値")
     st.write("ダブルクリックして各セルの数値を直接編集し、計画を変更できます。")
@@ -175,7 +197,7 @@ with col_inputs:
         "給与支給総額 (円)": [
             int(base_salary * 1.015),
             int(base_salary * 1.03),
-            int(base_salary * (1.015**3))  # 1.045から(1.015**3)に修正し、初期で1.5%をクリアするよう整合性確保
+            int(base_salary * (1.015**3))
         ]
     })
 
@@ -191,21 +213,45 @@ with col_inputs:
         }
     )
 
-    # 1人当たり平均給与の計算と反映 (ゼロ除算に対する完全ガード付き)
+    # 1人当たり平均給与の計算と反映 (データ編集による空欄/不正値に対する完全ガード)
     plan_data = []
     st.markdown("##### 計画データ詳細 (自動計算)")
     
     details = []
+    
+    # 基準年度の1人当たり平均（比較のベースとして表示）
+    base_avg_sal = base_salary // base_employees_safe
+    details.append({
+        "年度": "基準年度 (現在)",
+        "被保険者数": f"{base_employees} 名",
+        "給与支給総額": format_japanese_currency(base_salary),
+        "1人当たり平均": f"{base_avg_sal:,.0f}円/人"
+    })
+    
     for idx, row in edited_df.iterrows():
         yr = row["年度"]
-        emp = int(row["被保険者数"])
-        emp_safe = emp if emp > 0 else 1  # ゼロ除算回避用のセーフガード
-        sal = int(row["給与支給総額 (円)"])
+        
+        # 被保険者数の安全取得 (NaN/None/0 ガード)
+        emp_val = row["被保険者数"]
+        if pd.isna(emp_val) or emp_val is None or emp_val <= 0:
+            emp = base_employees
+        else:
+            emp = int(emp_val)
+            
+        # 給与支給総額の安全取得 (NaN/None/0 ガード)
+        sal_val = row["給与支給総額 (円)"]
+        if pd.isna(sal_val) or sal_val is None or sal_val <= 0:
+            sal = base_salary
+        else:
+            sal = int(sal_val)
+            
+        emp_safe = emp if emp > 0 else 1
         avg_sal = sal // emp_safe
+        
         details.append({
             "年度": yr,
             "被保険者数": f"{emp} 名",
-            "給与支給総額": f"{sal // 10000:,.0f}万円",
+            "給与支給総額": format_japanese_currency(sal),
             "1人当たり平均": f"{avg_sal:,.0f}円/人"
         })
         plan_data.append({"year": idx + 1, "employees": emp, "salary": sal, "avg": avg_sal})
@@ -325,11 +371,12 @@ with col_results:
             plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=0, r=0, t=10, b=0),
             height=260,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(color='#9ca3af', size=10)),
-            xaxis=dict(gridcolor='rgba(255,255,255,0.05)', tickfont=dict(color='#9ca3af')),
-            yaxis=dict(gridcolor='rgba(255,255,255,0.05)', tickfont=dict(color='#9ca3af'))
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
+            xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+            yaxis=dict(gridcolor='rgba(255,255,255,0.05)')
         )
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        # theme="streamlit" を指定することで、ライト/ダークモードでの自動配色調和を実現
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, theme="streamlit")
     else:
         # Altair/Streamlit標準のフォールバック
         chart_df = pd.DataFrame({
@@ -340,7 +387,7 @@ with col_results:
         st.line_chart(chart_df)
 
 # ==========================================================================
-# # 💡 AI分析 & コンサルタント提案レポートの生成 (完全な文字列集約ロジック)
+# 💡 AI分析 & コンサルタント提案レポートの生成 (完全な文字列集約ロジック)
 # ==========================================================================
 st.markdown("---")
 st.header("🧠 コンサルタントAI分析 & アクションプラン")
@@ -354,7 +401,7 @@ if is_min_wage_pass and is_cagr_pass:
 *   **診断結果サマリー**: 非常に安定的かつ実効性の高い賃上げ計画が策定されています。補助金交付申請の手続きをそのまま進めて問題ありません。
 *   **🔑 超重要：従業員への表明義務について**:
     *   補助金の申請を正式に提出（交付申請）する前に、必ず本賃上げ計画を**全従業員に対して表明（文書の配布、全体会議での口頭説明、社内掲示板への掲載等）**してください。
-    *   表明を行った事実を客観的に証明するため、「表明した日付、場所、表明方法、説明した内容」を記載した**『表明書面』**（または説明会の写真、従業員全員の受領確認サインなど）を作成し、手元に大切に保管してください。これがないと、事後検査で不採択・返還対象になる恐れがあります。
+    *   表明を行った事実を客観的に証明するため、「表明した日付、場所、表明方法、説明した内容」を記載した**『表明書面』**（または説明会の写真、従業員全員の受領確認サインなど）を作成し、手元に保管してください。これがないと、事後検査で不採択・返還対象になる恐れがあります。
 *   **📈 実績報告を見据えた事業DXの推進**:
     *   3年目の事業終了時の実績報告において、この数値（年平均1.5%増）を下回ってしまった場合、交付された補助金の返還を求められる枠組みです。今回導入するIT・AIツールをフル活用し、業務効率化と売上アップを同時に達成して、給与総額を健全に引き上げられる事業体質を構築していきましょう。
 """
@@ -381,7 +428,7 @@ else:
         deficit = req_year3_salary - year3_salary
         
         advice_markdown += f"""*   ❌ **給与支給総額のCAGR（年平均成長率）が目標の 1.50% に達していません (現在: {cagr_pct:.2f}% / 不足額: {deficit:,.0f}円)**
-*   年率平均 1.5% 以上の増加をクリアするためには、3年目の給与支給総額を最低でも **{req_year3_salary // 10000:,.0f}万円** ({req_year3_salary:,.0f}円) に引き上げる必要があります。
+*   年率平均 1.5% 以上の増加をクリアするためには、3年目の給与支給総額を最低でも **{format_japanese_currency(req_year3_salary)}** (あと **{format_japanese_currency(deficit)}** アップ) に引き上げる必要があります。
 
 💡 **ずっきー参謀による2つのリカバリー選択肢**:
 """
@@ -412,8 +459,8 @@ else:
 
     # C. 必須・加点に応じたペナルティ警告
     if is_required:
-        advice_markdown += """> ⚠️ **【重要・必須警告】**
-> 本申請枠では賃上げ要件が**「必須（未達成時は交付された補助金の一部または全部返還）」**となっています。申請手続きを完了させる前に、必ず上記の改善アクションを実行し、要件をクリアする数値計画に修正を行ってください。"""
+        advice_markdown += f"""> ⚠️ **【重要・必須ペナルティ警告】**
+> 本申請枠では賃上げ要件が**「必須」**となっています。実績報告時に未達成の場合、交付された補助金の**一部または全部返還**を強く求められます。また、過去に交付履歴がある場合の再申請では、未達成の場合に次回以降18ヶ月間の中小企業庁系補助金で**大幅な減点ペナルティ**が課されます。申請手続きを完了させる前に、必ず上記の改善アクションを実行し、要件をクリアする数値計画に修正を行ってください。"""
     else:
         advice_markdown += """> 💡 **【加点アドバイス】**
 > 加点項目としての賃上げ表明ですが、要件をクリアすることで採択確率（合格率）が大きく向上します。ぜひ上記プラン案AまたはBを検討いただき、要件適合マークを獲得することを強く推奨いたします。"""
