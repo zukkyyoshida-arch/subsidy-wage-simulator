@@ -24,7 +24,7 @@ PREFECTURE_MIN_WAGES = {
     "鳥取県": 957, "島根県": 962, "岡山県": 982, "広島県": 1020, "山口県": 979,
     "徳島県": 980, "香川県": 970, "愛媛県": 956, "高知県": 952, "福岡県": 992,
     "佐賀県": 956, "長崎県": 953, "熊本県": 952, "大分県": 954, "宮崎県": 952,
-    "鹿児島県": 953, "沖縄": 952
+    "鹿児島県": 953, "沖縄県": 952
 }
 
 # ==========================================================================
@@ -168,14 +168,14 @@ with col_inputs:
     st.markdown("##### 各計画年度の計画値")
     st.write("ダブルクリックして各セルの数値を直接編集し、計画を変更できます。")
 
-    # 初期データの作成
+    # 初期データの作成 (初期状態でCAGR 1.5%を完全に満たすように誤差を修正)
     init_df = pd.DataFrame({
         "年度": ["1年後", "2年後", "3年後 (目標年)"],
         "被保険者数": [base_employees, base_employees + 1, base_employees + 1],
         "給与支給総額 (円)": [
             int(base_salary * 1.015),
             int(base_salary * 1.03),
-            int(base_salary * 1.045)
+            int(base_salary * (1.015**3))  # 1.045から(1.015**3)に修正し、初期で1.5%をクリアするよう整合性確保
         ]
     })
 
@@ -191,7 +191,7 @@ with col_inputs:
         }
     )
 
-    # 1人当たり平均給与の計算と反映
+    # 1人当たり平均給与の計算と反映 (ゼロ除算に対する完全ガード付き)
     plan_data = []
     st.markdown("##### 計画データ詳細 (自動計算)")
     
@@ -199,8 +199,9 @@ with col_inputs:
     for idx, row in edited_df.iterrows():
         yr = row["年度"]
         emp = int(row["被保険者数"])
+        emp_safe = emp if emp > 0 else 1  # ゼロ除算回避用のセーフガード
         sal = int(row["給与支給総額 (円)"])
-        avg_sal = sal // emp
+        avg_sal = sal // emp_safe
         details.append({
             "年度": yr,
             "被保険者数": f"{emp} 名",
@@ -214,9 +215,10 @@ with col_inputs:
 # ---- 計算と判定 ----
 year3_salary = plan_data[2]["salary"]
 year3_employees = plan_data[2]["employees"]
+year3_employees_safe = year3_employees if year3_employees > 0 else 1
 year3_avg = plan_data[2]["avg"]
 
-# 1. CAGR計算
+# 1. CAGR計算 (ゼロ除算・マイナス値をガード)
 cagr = 0.0
 if base_salary > 0 and year3_salary > 0:
     cagr = (year3_salary / base_salary) ** (1/3) - 1
@@ -338,61 +340,86 @@ with col_results:
         st.line_chart(chart_df)
 
 # ==========================================================================
-# 💡 AI分析 & コンサルタント提案レポートの生成
+# # 💡 AI分析 & コンサルタント提案レポートの生成 (完全な文字列集約ロジック)
 # ==========================================================================
 st.markdown("---")
 st.header("🧠 コンサルタントAI分析 & アクションプラン")
 
-advice_html = ""
+advice_markdown = ""
 
 if is_min_wage_pass and is_cagr_pass:
     st.success("🎉 **おめでとうございます！すべての要件を完璧にクリアしています。**")
-    advice_html += f"""
-    *   **現在の診断結果**: 非常に安定して実効性の高い計画が立てられています。このまま補助金交付申請の手続きに進んでください。
-    *   **🔑 超重要アクション - 従業員への表明義務**: 
-        *   補助金の申請を正式に提出（交付申請）する前に、必ず本賃上げ計画を**全従業員に表明（文書、口頭、または掲示板への掲載等）**してください。
-        *   表明を行った事実を客観的に証明するため、「表明した日付、方法、対象者、説明内容」を記載した**表明書面（または説明会写真、従業員の署名・受領簿など）**を作成し、手元に大切に保管してください。
-    *   **📊 実績報告のクリアに向けて**:
-        *   3年目の事業終了時（実績報告時）に本要件（CAGR 1.5%）を下回っていると、返還ペナルティ等の対象となります。ITツール導入による「業務効率化」と「売上増加」を確実に進め、給与総額を健全に引き上げられる事業基盤を作りましょう。
-    """
+    advice_markdown += f"""### 🎉 要件達成の評価と今後のアクションプラン
+
+*   **診断結果サマリー**: 非常に安定的かつ実効性の高い賃上げ計画が策定されています。補助金交付申請の手続きをそのまま進めて問題ありません。
+*   **🔑 超重要：従業員への表明義務について**:
+    *   補助金の申請を正式に提出（交付申請）する前に、必ず本賃上げ計画を**全従業員に対して表明（文書の配布、全体会議での口頭説明、社内掲示板への掲載等）**してください。
+    *   表明を行った事実を客観的に証明するため、「表明した日付、場所、表明方法、説明した内容」を記載した**『表明書面』**（または説明会の写真、従業員全員の受領確認サインなど）を作成し、手元に大切に保管してください。これがないと、事後検査で不採択・返還対象になる恐れがあります。
+*   **📈 実績報告を見据えた事業DXの推進**:
+    *   3年目の事業終了時の実績報告において、この数値（年平均1.5%増）を下回ってしまった場合、交付された補助金の返還を求められる枠組みです。今回導入するIT・AIツールをフル活用し、業務効率化と売上アップを同時に達成して、給与総額を健全に引き上げられる事業体質を構築していきましょう。
+"""
 else:
     st.warning("⚠️ **計画のクリアに向けて、以下の修正・調整を提案します。**")
     
-    col_adv1, col_adv2 = st.columns(2)
+    advice_markdown += "### ⚠️ 要件達成に向けた改善アクションプラン\n\n"
     
-    with col_adv1:
-        st.markdown("##### 📍 最低賃金に関する改善策")
-        if is_min_wage_pass:
-            st.write("✅ **最低賃金要件はすでにクリアしています。** 現在の最低時給水準を維持・引き上げて計画を運用してください。")
-        else:
-            shortage = target_min_wage - current_min_wage
-            st.error(f"❌ **事業場内最低賃金が不足しています (不足: {shortage}円)**")
-            st.write(f"""
-            *   現在の事業場内最低時給である **{current_min_wage}円** は、{prefecture}の地域最低賃金（{ref_min_wage}円）に目標の{target_level}円を上乗せした **{target_min_wage}円** に達していません。
-            *   👉 **具体的な改善プラン**: 事業場内で最も時間給の低い労働者（パート・アルバイト含む）全員の時給を、計画初年度の運用開始日までに一律 **{target_min_wage}円以上** に引き上げるよう、サイドバーの「自社の事業場内最低時給」を修正してください。
-            """)
+    # A. 最低賃金アドバイス
+    advice_markdown += "#### 📍 1. 事業場内最低賃金に関する改善アプローチ\n"
+    if is_min_wage_pass:
+        advice_markdown += "*   ✅ **最低賃金要件はすでにクリアしています。** 現在の良好な最低時給水準を維持して事業計画を運用してください。\n\n"
+    else:
+        shortage = target_min_wage - current_min_wage
+        advice_markdown += f"""*   ❌ **現在の事業場内最低時給である {current_min_wage}円 は、目標の {target_min_wage}円 に達していません（不足: {shortage}円）**
+*   👉 **具体的な改善プラン**: 事業場内で最も時間給の低い労働者（パート・アルバイト含む）全員の時給を、計画初年度の運用開始日までに一律 **{target_min_wage}円以上** に引き上げるよう、サイドバーの「自社の事業場内最低時給」を修正してください。\n\n"""
             
-    with col_adv2:
-        st.markdown("##### 📈 給与総額CAGRに関する改善策")
-        if is_cagr_pass:
-            st.write("✅ **給与総額増加率はクリアしています (現在: {:.2f}%)**".format(cagr_pct))
-        else:
-            req_year3_salary = int(base_salary * (1.015**3))
-            deficit = req_year3_salary - year3_salary
-            st.error(f"❌ **支給総額CAGRが不足しています (現在: {cagr_pct:.2f}% / 不足額: {deficit:,.0f}円)**")
-            st.write(f"""
-            年率平均 1.5% 以上の増加をクリアするためには、3年目の給与支給総額を最低でも **{req_year3_salary // 10000:,.0f}万円** ({req_year3_salary:,.0f}円) に引き上げる必要があります。
-            
-            🧠 **ずっきー参謀による2つのアプローチ案**:
-            *   **【案A】1人当たりの給与ベースアップ (人数は維持)**
-                *   3年目の被保険者数 **{year3_employees}名** を変更せず、昇給や賞与を調整します。
-                *   → 3年目の1人当たり年間給与を平均 **{req_year3_salary // year3_employees:,.0f}円** (現在計画から約 **{(req_year3_salary - year3_salary) // year3_employees:,.0f}円/人** 引き上げる)。
-            *   **【案B】採用計画の強化 (給与水準は維持)**
-                *   1人当たりの給料は変えずに、採用人数を増やして総支給額を増やします。
-                *   → 3年目の被保険者数を現在の計画からさらに **{int(np.ceil(req_year3_salary / (year3_salary / year3_employees))) - year3_employees}名** 追加採用し、総員を増やします。
-            """)
+    # B. CAGRアドバイス (ゼロ除算に対する防御ガード付き)
+    advice_markdown += "#### 📈 2. 給与支給総額CAGR（年平均成長率）に関する改善アプローチ\n"
+    if is_cagr_pass:
+        advice_markdown += f"*   ✅ **給与支給総額の増加率はすでにクリアしています。 (現在: {cagr_pct:.2f}%)\n\n"
+    else:
+        req_year3_salary = int(base_salary * (1.015**3))
+        deficit = req_year3_salary - year3_salary
+        
+        advice_markdown += f"""*   ❌ **給与支給総額のCAGR（年平均成長率）が目標の 1.50% に達していません (現在: {cagr_pct:.2f}% / 不足額: {deficit:,.0f}円)**
+*   年率平均 1.5% 以上の増加をクリアするためには、3年目の給与支給総額を最低でも **{req_year3_salary // 10000:,.0f}万円** ({req_year3_salary:,.0f}円) に引き上げる必要があります。
 
-st.markdown(advice_html)
+💡 **ずっきー参謀による2つのリカバリー選択肢**:
+"""
+        # 【案A】ベースアップ案 (ゼロ除算ガード)
+        if year3_employees > 0:
+            proposed_avg = req_year3_salary // year3_employees
+            current_avg = year3_salary // year3_employees
+            diff_avg = proposed_avg - current_avg
+            advice_markdown += f"""*   **【案A】1人当たりの給与ベースアップ（人数計画は維持）**
+    *   3年目の被保険者数 **{year3_employees}名** を変更せず、昇給や賞与額を増やして総支給額をアップします。
+    *   → 3年目の1人当たり年間給与を平均 **{proposed_avg:,.0f}円**（現在の計画から平均 **{diff_avg:,.0f}円/人** 引き上げる）。\n"""
+        else:
+            advice_markdown += "*   **【案A】1人当たりの給与ベースアップ**: ※被保険者数が0名になっているため、先に人数を1名以上に入力してください。\n"
+
+        # 【案B】採用追加案 (ゼロ除算ガード)
+        if year3_salary > 0 and year3_employees > 0:
+            current_avg_salary = year3_salary / year3_employees
+            needed_employees = int(np.ceil(req_year3_salary / current_avg_salary))
+            additional_people = needed_employees - year3_employees
+            if additional_people > 0:
+                advice_markdown += f"""*   **【案B】採用計画の強化（給与水準は維持し人数を増やす）**
+    *   現在の給与水準を変更せず、被保険者数を増やして給与支給総額のベースを大きくします。
+    *   → 3年目の被保険者数をさらに **{additional_people}名追加採用** し、総員 **{needed_employees}名** の体制に計画をアップデートする。\n\n"""
+            else:
+                advice_markdown += "*   **【案B】採用計画の強化**: 3年目の給与総額が0円となっているため、給与計画を入力してください。\n\n"
+        else:
+            advice_markdown += "*   **【案B】採用計画の強化**: ※3年目の給与総額が0円または人数が0名となっているため、計画の入力が必要です。\n\n"
+
+    # C. 必須・加点に応じたペナルティ警告
+    if is_required:
+        advice_markdown += """> ⚠️ **【重要・必須警告】**
+> 本申請枠では賃上げ要件が**「必須（未達成時は交付された補助金の一部または全部返還）」**となっています。申請手続きを完了させる前に、必ず上記の改善アクションを実行し、要件をクリアする数値計画に修正を行ってください。"""
+    else:
+        advice_markdown += """> 💡 **【加点アドバイス】**
+> 加点項目としての賃上げ表明ですが、要件をクリアすることで採択確率（合格率）が大きく向上します。ぜひ上記プラン案AまたはBを検討いただき、要件適合マークを獲得することを強く推奨いたします。"""
+
+# 画面へのアドバイス出力
+st.markdown(advice_markdown)
 
 # ==========================================================================
 # 提案書レポート印刷・出力用セクション
@@ -414,5 +441,9 @@ report_df = pd.DataFrame([
 ], columns=["項目", "内容"])
 
 st.table(report_df)
+
+# 同期されたAIアドバイスのテキストをレポートの下部にも美しく出力
+st.markdown("### 📋 改善アドバイス・アクションプラン詳細 (印刷用)")
+st.info(advice_markdown)
 
 st.caption("※本報告書は最新の公募要領に基づいてシミュレーションされたものです。最終的な申請内容については、必ず公募要領を確認の上、専門家またはIT導入支援事業者とご相談ください。")
