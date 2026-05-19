@@ -368,7 +368,7 @@ else:
             shortage = target_min_wage - current_min_wage
             st.error(f"❌ **事業場内最低賃金が不足しています (不足: {shortage}円)**")
             st.write(f"""
-            *   現在の事業場内最低時給である **{current_min_wage}円** は、{prefecture}の地域最低賃金（{ref_min_wage}円）に目標の{raiseLevel}円を上乗せした **{target_min_wage}円** に達していません。
+            *   現在の事業場内最低時給である **{current_min_wage}円** は、{prefecture}の地域最低賃金（{ref_min_wage}円）に目標の{target_level}円を上乗せした **{target_min_wage}円** に達していません。
             *   👉 **具体的な改善プラン**: 事業場内で最も時間給の低い労働者（パート・アルバイト含む）全員の時給を、計画初年度の運用開始日までに一律 **{target_min_wage}円以上** に引き上げるよう、サイドバーの「自社の事業場内最低時給」を修正してください。
             """)
             
