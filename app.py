@@ -195,9 +195,9 @@ with col_inputs:
         "年度": ["1年後", "2年後", "3年後 (目標年)"],
         "被保険者数": [base_employees, base_employees + 1, base_employees + 1],
         "給与支給総額 (円)": [
-            int(base_salary * 1.015),
-            int(base_salary * 1.03),
-            int(base_salary * (1.015**3))
+            int(np.ceil(base_salary * 1.015)),
+            int(np.ceil(base_salary * 1.015**2)),
+            int(np.ceil(base_salary * (1.015**3)))
         ]
     })
 
@@ -270,7 +270,8 @@ if base_salary > 0 and year3_salary > 0:
     cagr = (year3_salary / base_salary) ** (1/3) - 1
 cagr_pct = cagr * 100
 
-is_cagr_pass = cagr_pct >= 1.5
+# 表示上の四捨五入（小数点第2位まで）と判定条件を完全に一致させる
+is_cagr_pass = round(cagr_pct, 2) >= 1.50
 
 # 2. 最低賃金判定
 is_min_wage_pass = current_min_wage >= target_min_wage
@@ -337,9 +338,9 @@ with col_results:
     actual_salaries = [base_salary, plan_data[0]["salary"], plan_data[1]["salary"], plan_data[2]["salary"]]
     target_salaries = [
         base_salary,
-        int(base_salary * (1.015**1)),
-        int(base_salary * (1.015**2)),
-        int(base_salary * (1.015**3))
+        int(np.ceil(base_salary * (1.015**1))),
+        int(np.ceil(base_salary * (1.015**2))),
+        int(np.ceil(base_salary * (1.015**3)))
     ]
     
     if HAS_PLOTLY:
@@ -424,7 +425,7 @@ else:
     if is_cagr_pass:
         advice_markdown += f"*   ✅ **給与支給総額の増加率はすでにクリアしています。 (現在: {cagr_pct:.2f}%)\n\n"
     else:
-        req_year3_salary = int(base_salary * (1.015**3))
+        req_year3_salary = int(np.ceil(base_salary * (1.015**3)))
         deficit = req_year3_salary - year3_salary
         
         advice_markdown += f"""*   ❌ **給与支給総額のCAGR（年平均成長率）が目標の 1.50% に達していません (現在: {cagr_pct:.2f}% / 不足額: {deficit:,.0f}円)**
